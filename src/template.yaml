@@ -140,7 +140,7 @@ Resources:
     Type: AWS::Serverless::StateMachine
     Properties:
       Name: techgrow-pipeline-orquestador
-      DefinitionUri: statemachine/workflow.asl.json
+      DefinitionUri: statemachine_workflow.asl.json
       DefinitionSubstitutions:
         ApiCollectorLambdaArn: !GetAtt ApiCollectorLambda.Arn
         PredictionModelLambdaArn: !GetAtt PredictionModelLambda.Arn
