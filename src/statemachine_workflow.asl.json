@@ -1,0 +1,40 @@
+{
+  "Comment": "Pipeline de predicción de demanda de restaurantes con arquitectura Medallón y APIs externas",
+  "StartAt": "EjecutarProcesamientoEnParalelo",
+  "States": {
+    "EjecutarProcesamientoEnParalelo": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "EjecutarArquitecturaMedallonGlue",
+          "States": {
+            "EjecutarArquitecturaMedallonGlue": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "${GlueJobName}"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "ConsumirApisExternasLambda",
+          "States": {
+            "ConsumirApisExternasLambda": {
+              "Type": "Task",
+              "Resource": "${ApiCollectorLambdaArn}",
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "EjecutarModeloDePrediccion"
+    },
+    "EjecutarModeloDePrediccion": {
+      "Type": "Task",
+      "Resource": "${PredictionModelLambdaArn}",
+      "End": true
+    }
+  }
+}
