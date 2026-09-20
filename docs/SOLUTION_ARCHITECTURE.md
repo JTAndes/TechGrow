@@ -38,11 +38,19 @@ El archivo de infraestructura como código (IaC) utiliza **AWS SAM / CloudFormat
 * **`GlueMedallionJob` (`techgrow-glue-medallon-etl`):** Script ETL en Python ejecutado en entornos serverless de Glue para la limpieza y modelado de los datos tabulares.
 * **`DataLakeGlueDatabase` & `GoldTableCrawler`:** Base de datos metastore de Glue y un Crawler automatizado programado para escanear periódicamente la capa `gold/`, manteniendo actualizado el catálogo de datos de manera automática.
 
-### C. Funciones de Computación (AWS Lambda)
+### C. Red, Seguridad Perimetral y Gobierno (VPC, WAF & IAM)
+* **`TechGrowVPC` & Subred Privada (`techgrow-secure-vpc`):** Entorno de red aislado que garantiza que las cargas de trabajo de cómputo (como las funciones Lambda) operen de forma interna y sin exposición pública directa al exterior.
+* **`TechGrowWebACL` (AWS WAF):** Capa de protección perimetral configurada a nivel regional para blindar los accesos e integrar reglas gestionadas contra vulnerabilidades comunes.
+* **Gobierno de Identidad y Acceso (Roles IAM granulares):** 
+  * `GlueExecutionRole`: Gobierna los permisos de menor privilegio para que Glue lea/escriba en el Data Lake y administre el catálogo.
+  * `StateMachineExecutionRole`: Otorga permisos estrictos para que Step Functions invoque las funciones Lambda y controle la ejecución de los Glue Jobs de forma nativa.
+  * `EventBridgeSchedulerRole`: Autoriza de manera controlada al disparador temporal para activar la máquina de estados.
+
+### D. Funciones de Computación (AWS Lambda)
 * **`ApiCollectorLambda` (`techgrow-api-collector`):** Función optimizada para realizar peticiones concurrentes a APIs externas e ingerir los datos climáticos y de movilidad.
 * **`PredictionModelLambda` (`techgrow-prediction-model`):** Función con mayor capacidad de memoria (1024 MB) y timeout extendido para cargar y ejecutar la lógica de inferencia sobre la data consolidada.
 
-### D. Orquestación y Automatización
+### E. Orquestación y Automatización
 * **`PredictionStateMachine` (Step Functions):** Define la lógica de control mediante el archivo `workflow.asl.json`, gestionando paralelismos, reintentos y control de errores.
 * **`WeeklyEventBridgeSchedule`:** Automatiza el despertar del pipeline en horarios estratégicos sin requerir servidores encendidos 24/7.
 
