@@ -49,31 +49,8 @@ Resources:
       Timeout: 60
       WorkerType: G.1X
       NumberOfWorkers: 2
-
-  GlueExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: glue.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: GlueS3AccessPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                  - s3:ListBucket
-                Resource:
-                  - !GetAtt DataLakeBucket.Arn
-                  - !Sub "${DataLakeBucket.Arn}/*"
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
 
   # ==========================================
   # 3. GLUE DATA CATALOG & CRAWLER
@@ -100,56 +77,43 @@ Resources:
         ScheduleExpression: "cron(0 7 ? * MON *)" # Se ejecuta los lunes a las 7 AM (después del pipeline ETL)
 
   # ==========================================
-  # 4. FUNCIONES LAMBDA (APIs y Modelo)
+  # 4. GOBIERNO DE IDENTIDAD Y ACCESO (IAM ROLES & POLICIES)
   # ==========================================
 
-  ApiCollectorLambda:
-    Type: AWS::Serverless::Function
+  GlueExecutionRole:
+    Type: AWS::IAM::Role
     Properties:
-      FunctionName: techgrow-api-collector
-      Handler: index.handler
-      Runtime: python3.11
-      CodeUri: src/api_collector/
-      MemorySize: 256
-      Timeout: 60
-      Environment:
-        Variables:
-          BUCKET_NAME: !Ref DataLakeBucket
-          PREFIX_APIS: "apis-context/"
-
-  PredictionModelLambda:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: techgrow-prediction-model
-      Handler: index.handler
-      Runtime: python3.11
-      CodeUri: src/model_inference/
-      MemorySize: 1024
-      Timeout: 300
-      Environment:
-        Variables:
-          GOLD_BUCKET: !Ref DataLakeBucket
-          APIS_BUCKET: !Ref DataLakeBucket
-          OUTPUT_BUCKET: !Ref ModelPredictionsBucket
-
-  # ==========================================
-  # 5. ORQUESTACIÓN (STEP FUNCTIONS)
-  # ==========================================
-
-  PredictionStateMachine:
-    Type: AWS::Serverless::StateMachine
-    Properties:
-      Name: techgrow-pipeline-orquestador
-      DefinitionUri: statemachine_workflow.asl.json
-      DefinitionSubstitutions:
-        ApiCollectorLambdaArn: !GetAtt ApiCollectorLambda.Arn
-        PredictionModelLambdaArn: !GetAtt PredictionModelLambda.Arn
-        GlueJobName: !Ref GlueMedallionJob
-      Role: !GetAtt StateMachineExecutionRole.Arn
+      RoleName: techgrow-glue-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GlueS3AndCatalogPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt DataLakeBucket.Arn
+                  - !Sub "${DataLakeBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - glue:*
+                Resource: "*"
 
   StateMachineExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: techgrow-stepfunction-execution-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -176,26 +140,10 @@ Resources:
                   - glue:BatchStopJobRun
                 Resource: "*"
 
-  # ==========================================
-  # 6. DISPARADOR AUTOMÁTICO (EVENTBRIDGE)
-  # ==========================================
-
-  WeeklyEventBridgeSchedule:
-    Type: AWS::Scheduler::Schedule
-    Properties:
-      Name: techgrow-weekly-trigger
-      Description: "Dispara la máquina de estados de Step Functions semanalmente (Lunes a las 6:00 AM)"
-      ScheduleExpression: "cron(0 6 ? * MON *)"
-      State: ENABLED
-      FlexibleTimeWindow:
-        Mode: OFF
-      Target:
-        Arn: !Ref PredictionStateMachine
-        RoleArn: !GetAtt EventBridgeSchedulerRole.Arn
-
   EventBridgeSchedulerRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: techgrow-scheduler-execution-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -213,6 +161,142 @@ Resources:
                   - states:StartExecution
                 Resource: !Ref PredictionStateMachine
 
+  # ==========================================
+  # 5. RED Y SEGURIDAD PERIMETRAL (VPC & WAF)
+  # ==========================================
+
+  TechGrowVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: techgrow-secure-vpc
+
+  TechGrowPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TechGrowVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: techgrow-private-subnet
+
+  TechGrowSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group para aislar recursos serverless en VPC"
+      VpcId: !Ref TechGrowVPC
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: techgrow-sg
+
+  TechGrowWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: techgrow-waf-protection
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        MetricName: TechGrowWAFMetrics
+        SampledRequestsEnabled: true
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 1
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: CommonRulesMetric
+            SampledRequestsEnabled: true
+
+  # ==========================================
+  # 6. FUNCIONES LAMBDA (APIs y Modelo)
+  # ==========================================
+
+  ApiCollectorLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: techgrow-api-collector
+      Handler: index.handler
+      Runtime: python3.11
+      CodeUri: src/api_collector/
+      MemorySize: 256
+      Timeout: 60
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref TechGrowSecurityGroup
+        SubnetIds:
+          - !Ref TechGrowPrivateSubnet
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref DataLakeBucket
+          PREFIX_APIS: "apis-context/"
+
+  PredictionModelLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: techgrow-prediction-model
+      Handler: index.handler
+      Runtime: python3.11
+      CodeUri: src/model_inference/
+      MemorySize: 1024
+      Timeout: 300
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref TechGrowSecurityGroup
+        SubnetIds:
+          - !Ref TechGrowPrivateSubnet
+      Environment:
+        Variables:
+          GOLD_BUCKET: !Ref DataLakeBucket
+          APIS_BUCKET: !Ref DataLakeBucket
+          OUTPUT_BUCKET: !Ref ModelPredictionsBucket
+
+  # ==========================================
+  # 7. ORQUESTACIÓN (STEP FUNCTIONS)
+  # ==========================================
+
+  PredictionStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: techgrow-pipeline-orquestador
+      DefinitionUri: statemachine/workflow.asl.json
+      DefinitionSubstitutions:
+        ApiCollectorLambdaArn: !GetAtt ApiCollectorLambda.Arn
+        PredictionModelLambdaArn: !GetAtt PredictionModelLambda.Arn
+        GlueJobName: !Ref GlueMedallionJob
+      Role: !GetAtt StateMachineExecutionRole.Arn
+
+  # ==========================================
+  # 8. DISPARADOR AUTOMÁTICO (EVENTBRIDGE)
+  # ==========================================
+
+  WeeklyEventBridgeSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: techgrow-weekly-trigger
+      Description: "Dispara la máquina de estados de Step Functions semanalmente (Lunes a las 6:00 AM)"
+      ScheduleExpression: "cron(0 6 ? * MON *)"
+      State: ENABLED
+      FlexibleTimeWindow:
+        Mode: OFF
+      Target:
+        Arn: !Ref PredictionStateMachine
+        RoleArn: !GetAtt EventBridgeSchedulerRole.Arn
+
 Outputs:
   DataLakeBucketName:
     Description: "Nombre del Data Lake Medallón S3"
@@ -229,3 +313,9 @@ Outputs:
   StateMachineArn:
     Description: "ARN de la máquina de estados de Step Functions"
     Value: !Ref PredictionStateMachine
+  VpcId:
+    Description: "ID de la VPC segura"
+    Value: !Ref TechGrowVPC
+  WebAclArn:
+    Description: "ARN del WAF Web ACL"
+    Value: !GetAtt TechGrowWebACL.Arn
