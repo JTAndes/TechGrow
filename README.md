@@ -1,4 +1,4 @@
-# TechGrow 🚀
+# TechGrow 
 
 Sistema de analítica predictiva y modelos de transaccionalidad por estación, diseñado bajo estándares de arquitectura de software, infraestructura segura y gestión eficiente de grandes volúmenes de datos.
 
@@ -18,13 +18,13 @@ TechGrow/
 └── REQUIREMENTS.md         # Dependencias y requerimientos del entorno
 ```
 
-## 🛠️ Componentes Clave
+## Componentes
 
 * **Analítica y Modelado (`/notebooks` & `/modelo`)**: Contiene los notebooks de entrenamiento y evaluación, junto con los modelos serializados (`.joblib`) orientados a la predicción y transaccionalidad por estación y sucursal.
 * **Infraestructura y Orquestación (`/src`)**: Incluye la definición de la máquina de estados y plantillas de despliegue (`template.yaml` y `statemachine_workflow.asl.json`).
 * **Documentación (`/docs`)**: Manuales de usuario y diagramas de arquitectura detallados (`SOLUTION_ARCHITECTURE.md`, `USER_MANUAL.md`).
 
-## ⚙️ Configuración y Despliegue Local
+## Configuración y Despliegue Local
 
 1. **Clonar el repositorio y configurar Git LFS:**
    ```bash
