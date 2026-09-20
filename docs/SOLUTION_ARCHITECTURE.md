@@ -6,7 +6,8 @@ Este proyecto implementa una arquitectura serverless, basada en eventos y orient
 ---
 
 ## 2. Diagrama de Arquitectura de Solución
-<img width="815" height="507" alt="image" src="https://github.com/user-attachments/assets/873cc84c-9f6e-4fe2-ac88-dc42c2f96035" />
+<img width="799" height="479" alt="image" src="https://github.com/user-attachments/assets/9b29c513-5de7-427a-ab29-d0a44813247f" />
+
 
 
 
