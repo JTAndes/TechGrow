@@ -1,12 +1,12 @@
-# TechGrow - Requerimientos y Dependencias 📦
+# TechGrow - Requerimientos y Dependencias
 
 Este documento detalla las dependencias de software, librerías de Machine Learning y herramientas de infraestructura necesarias para ejecutar correctamente el proyecto **TechGrow** en un entorno local (macOS / Linux / Windows).
 
-## 🐍 Requisitos del Sistema
+## Requisitos del Sistema
 * **Python**: `3.10` o superior (Recomendado gestionar mediante Anaconda/Miniconda).
 * **Git LFS**: Obligatorio para la descarga y control de versiones de datasets y modelos pesados (`.csv`, `.joblib`).
 
-## 📚 Dependencias de Python (`requirements.txt`)
+## Dependencias de Python (`requirements.txt`)
 
 Copia y guarda las siguientes librerías en un archivo `requirements.txt` o instálalas directamente:
 
@@ -29,7 +29,7 @@ notebook>=6.5.0
 ipykernel>=6.20.0
 ```
 
-## 🚀 Instalación Rápida del Entorno
+## Instalación Rápida del Entorno
 
 Si estás configurando tu entorno local desde cero en la terminal, ejecuta los siguientes comandos:
 
